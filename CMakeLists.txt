@@ -194,9 +194,44 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${QUIC_OUTPUT_DIR})
 
 set(QUIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/inc)
 
+# Setup Default Arguments
+set(MSVC_COMMON_FLAGS /MP)
+set(MSVC_WARNING_FLAGS /WX /W4 /sdl CACHE INTERNAL "")
+set(MSVC_C_FLAGS "")
+set(MSVC_CXX_FLAGS /EHsc /permissive-)
+set(MSVC_COMMON_DEFINES "")
+
+set(GCC_COMMON_FLAGS "")
+set(GCC_C_FLAGS "")
+set(GCC_CXX_FLAGS "")
+set(GCC_WARNING_FLAGS -Werror -Wall -Wextra -Wformat=2 -Wno-type-limits
+    -Wno-unknown-pragmas -Wno-multichar -Wno-missing-field-initializers
+    CACHE INTERNAL "")
+if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0)
+    list(APPEND GCC_WARNING_FLAGS -Wno-strict-aliasing)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    list(APPEND GCC_WARNING_FLAGS -Wno-missing-braces -Wno-microsoft-anon-tag)
+endif()
+set(GCC_COMMON_DEFINES "")
+
+if (MSVC)
+    set(QUIC_WARNING_FLAGS ${MSVC_WARNING_FLAGS})
+    set(QUIC_COMMON_FLAGS ${MSVC_COMMON_FLAGS})
+    set(QUIC_COMMON_DEFINES ${MSVC_COMMON_DEFINES})
+else()
+    set(QUIC_WARNING_FLAGS ${GCC_WARNING_FLAGS})
+
+    set(QUIC_COMMON_FLAGS ${GCC_COMMON_FLAGS})
+    set(QUIC_COMMON_DEFINES ${GCC_COMMON_DEFINES})
+endif()
+
+# Setup Win32 Specific Checks
 if (WIN32)
-    set(QUIC_WARNING_FLAGS /WX /W4 /sdl CACHE INTERNAL "")
-    set(QUIC_COMMON_FLAGS "")
+    list(APPEND QUIC_COMMON_DEFINES WIN32_LEAN_AND_MEAN SECURITY_WIN32)
+endif()
+
+# Setup MSVC Specific Checks
+if (MSVC)
 
     include(CheckCCompilerFlag)
 
@@ -221,13 +256,10 @@ if (WIN32)
             message(FATAL_ERROR "/Qspectre must exist for CI builds")
         endif()
     endif()
+endif()
 
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-        list(APPEND QUIC_COMMON_FLAGS /MP)
-    endif()
-    set(QUIC_COMMON_DEFINES WIN32_LEAN_AND_MEAN SECURITY_WIN32)
-else()
-
+# Setup unix specific checks
+if (NOT WIN32)
     include(CheckSymbolExists)
     include(CheckFunctionExists)
     include(CheckIncludeFile)
@@ -284,8 +316,7 @@ else()
         check_function_exists(sysctl HAS_SYSCTL)
     endif()
 
-    set(QUIC_COMMON_FLAGS "")
-    set(QUIC_COMMON_DEFINES _GNU_SOURCE)
+    list(APPEND QUIC_COMMON_DEFINES _GNU_SOURCE)
     if (HAS_SENDMMSG)
         list(APPEND QUIC_COMMON_DEFINES HAS_SENDMMSG)
     endif()
@@ -297,14 +328,6 @@ else()
     endif()
     if (HAS_SYSCTL)
          list(APPEND QUIC_COMMON_DEFINES HAS_SYSCTL)
-    endif()
-    set(QUIC_WARNING_FLAGS -Werror -Wall -Wextra -Wformat=2 -Wno-type-limits
-        -Wno-unknown-pragmas -Wno-multichar -Wno-missing-field-initializers
-        CACHE INTERNAL "")
-    if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0)
-        list(APPEND QUIC_WARNING_FLAGS -Wno-strict-aliasing)
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        list(APPEND QUIC_WARNING_FLAGS -Wno-missing-braces -Wno-microsoft-anon-tag)
     endif()
 endif()
 
@@ -452,9 +475,6 @@ if(WIN32)
         list(APPEND QUIC_COMMON_FLAGS /fsanitize=address)
     endif()
 
-    set(QUIC_C_FLAGS ${QUIC_COMMON_FLAGS})
-    set(QUIC_CXX_FLAGS ${QUIC_COMMON_FLAGS} /EHsc /permissive-)
-
     # These cannot be updated until CMake 3.13
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /GL /Zi")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /GL /Zi")
@@ -559,9 +579,6 @@ else() #!WIN32
             list(APPEND QUIC_COMMON_FLAGS -fsanitize=unsigned-integer-overflow -fsanitize=local-bounds -fsanitize=integer -fsanitize=nullability)
         endif()
     endif()
-
-    set(QUIC_C_FLAGS ${QUIC_COMMON_FLAGS})
-    set(QUIC_CXX_FLAGS ${QUIC_COMMON_FLAGS})
 endif()
 
 if(QUIC_TLS STREQUAL "openssl")
@@ -580,6 +597,15 @@ if(QUIC_TLS STREQUAL "openssl")
         INTERFACE
         OpenSSLQuic::OpenSSLQuic
     )
+endif()
+
+# Set C and C++ specific flags
+if (MSVC)
+    set(QUIC_C_FLAGS ${MSVC_C_FLAGS})
+    set(QUIC_CXX_FLAGS ${MSVC_CXX_FLAGS})
+else()
+    set(QUIC_C_FLAGS ${GCC_C_FLAGS})
+    set(QUIC_CXX_FLAGS ${GCC_CXX_FLAGS})
 endif()
 
 if(QUIC_CODE_CHECK)

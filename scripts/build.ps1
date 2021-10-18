@@ -257,9 +257,6 @@ if (!(Test-Path $BaseArtifactsDir)) {
 if (!(Test-Path $BuildDir)) { New-Item -Path $BuildDir -ItemType Directory -Force | Out-Null }
 
 if ($Clang) {
-    if ($IsWindows) {
-        Write-Error "Clang is not supported on windows currently"
-    }
     $env:CC = 'clang'
     $env:CXX = 'clang++'
 }
@@ -343,6 +340,9 @@ function CMake-Generate {
     }
     if (!$IsWindows) {
         $Arguments += " -DCMAKE_BUILD_TYPE=" + $Config
+    }
+    if ($IsWindows -and $Clang) {
+        $Arguments += " -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang"
     }
     if ($DynamicCRT) {
         $Arguments += " -DQUIC_STATIC_LINK_CRT=off"
